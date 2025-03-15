@@ -1,0 +1,8 @@
+{
+    "dependencies": {
+        "mqtt": "^5.10.4"
+    },
+    "scripts": {
+        "start": "node device.js"
+    }
+}

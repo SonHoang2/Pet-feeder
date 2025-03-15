@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  mqtt-broker:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - feeder-network
+
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mqtt-broker
+    networks:
+      - feeder-network
+    environment:
+      - MQTT_BROKER=mqtt://mqtt-broker:1883
+
+  device:
+    build: ./device
+    depends_on:
+      - mqtt-broker
+      - server
+    networks:
+      - feeder-network
+    environment:
+      - MQTT_BROKER=mqtt://mqtt-broker:1883
+
+networks:
+  feeder-network:
+    driver: bridge
