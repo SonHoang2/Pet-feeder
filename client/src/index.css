@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root,
+.app {
+    height: 100%;
+}
+
+/* Custom text gradient */
+.text-gradient {
+    background: linear-gradient(to right, #2563eb, #9333ea);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Custom backdrop blur */
+.backdrop-blur {
+    backdrop-filter: blur(4px);
+}
+
+/* Custom gradient stroke */
+.gradient-stroke {
+    stroke: url(#gradient);
+}
