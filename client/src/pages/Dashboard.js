@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, Settings } from 'react-feather';
+import mqtt from 'mqtt';
 
 const Dashboard = () => {
     const [foodLevel, setFoodLevel] = useState(100);
@@ -10,6 +11,30 @@ const Dashboard = () => {
         { time: '18:00', portion: 50 },
     ]);
 
+    useEffect(() => {
+        // Connect using WebSocket if supported
+        const client = mqtt.connect('ws://localhost:9001');
+
+        client.on('connect', () => {
+            client.subscribe('petfeeder/foodLevel', (err) => {
+                if (!err) {
+                    console.log('Subscribed to food level topic');
+                }
+            });
+        });
+
+        client.on('message', (topic, message) => {
+            if (topic === 'petfeeder/foodLevel') {
+                const data = JSON.parse(message.toString());
+                setFoodLevel(data.foodLevel);
+            }
+        });
+
+        return () => {
+            client.end();
+        };
+    }, []);
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
             <div className="max-w-6xl mx-auto space-y-8">
@@ -17,7 +42,7 @@ const Dashboard = () => {
                 <div className="flex justify-between items-center">
                     <h1 className="text-4xl font-bold text-gray-800">
                         <span className="text-gradient">
-                            SmartFeeder
+                            PetFeeder
                         </span>
                     </h1>
                     <div className="flex items-center space-x-4">

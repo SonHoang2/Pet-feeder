@@ -34,6 +34,13 @@ services:
     environment:
       - MQTT_BROKER=mqtt://mqtt-broker:1883
 
+  # client:
+  #   build: ./client
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - feeder-network
+
 networks:
   feeder-network:
     driver: bridge
