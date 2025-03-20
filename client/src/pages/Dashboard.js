@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, Settings } from 'react-feather';
+import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, Settings, Check, X } from 'react-feather';
 import mqtt from 'mqtt';
+import axios from 'axios';
+import { SERVER_URL } from '../config/config';
 
 const Dashboard = () => {
     const [foodLevel, setFoodLevel] = useState(100);
@@ -10,6 +12,7 @@ const Dashboard = () => {
         { time: '12:30', portion: 40 },
         { time: '18:00', portion: 50 },
     ]);
+    const [showAlert, setShowAlert] = useState(false);
 
     useEffect(() => {
         // Connect using WebSocket if supported
@@ -26,6 +29,8 @@ const Dashboard = () => {
         client.on('message', (topic, message) => {
             if (topic === 'petfeeder/foodLevel') {
                 const data = JSON.parse(message.toString());
+                console.log(data);
+
                 setFoodLevel(data.foodLevel);
             }
         });
@@ -35,8 +40,45 @@ const Dashboard = () => {
         };
     }, []);
 
+    const feed = async () => {
+        try {
+            const res = await axios.post(SERVER_URL + "/feed", {
+                portion: portionSize,
+            });
+
+            console.log(res.data);
+
+            setShowAlert(true);
+
+            // Auto-dismiss alert after 2 seconds
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 2000);
+        } catch (error) {
+            console.error(error);
+        }
+    }
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
+            {showAlert && (
+                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
+                    <div className="bg-white py-4 px-6 rounded-xl shadow-2xl border border-green-300 flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center">
+                            <Check className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-gray-800">Success!</h3>
+                            <p className="text-sm text-gray-600">Food dispensed: {portionSize}g</p>
+                        </div>
+                        <button
+                            onClick={() => setShowAlert(false)}
+                            className="ml-6 text-gray-400 hover:text-gray-600"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+            )}
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="flex justify-between items-center">
@@ -132,7 +174,10 @@ const Dashboard = () => {
                             <span>Manual Feeding</span>
                         </h2>
                         <div className="space-y-6">
-                            <button className="w-full py-5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all flex items-center justify-center space-x-3 hover:scale-[1.02]">
+                            <button
+                                className="w-full py-5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all flex items-center justify-center space-x-3 hover:scale-[1.02]"
+                                onClick={feed}
+                            >
                                 <span>Dispense Food Now</span>
                                 <ChevronRight className="w-5 h-5" />
                             </button>
