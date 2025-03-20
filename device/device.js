@@ -13,8 +13,8 @@ client.on('connect', () => {
     // Send periodic updates
     setInterval(() => {
         // Simulate food consumption
-        if(!isFeeding) foodLevel = Math.max(0, foodLevel - Math.random() * 2);
-        
+        if(!isFeeding) foodLevel = Math.max(0, Math.ceil(foodLevel - Math.random() * 2));
+                
         // Publish sensor data
         client.publish('petfeeder/foodLevel', JSON.stringify({
             deviceId: 'feeder-001',
@@ -24,7 +24,6 @@ client.on('connect', () => {
     }, 5000);
 });
 
-// Handle feed commands
 client.on('message', (topic, message) => {
     if(topic === 'petfeeder/feedCommand') {
         const command = JSON.parse(message);
@@ -32,7 +31,7 @@ client.on('message', (topic, message) => {
             console.log('Triggering feeding mechanism');
             isFeeding = true;
             foodLevel = 100;
-            setTimeout(() => isFeeding = false, 3000); // Simulate feeding time
+            setTimeout(() => isFeeding = false, 3000);
         }
     }
 });

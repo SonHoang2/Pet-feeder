@@ -2,8 +2,13 @@ const mqtt = require('mqtt');
 const express = require('express');
 const app = express();
 const port = 5000;
+const cors = require('cors');
 
 const client = mqtt.connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
+
+
+app.use(cors());
+app.use(express.json());
 
 // Store fake data
 let deviceState = {
@@ -23,6 +28,8 @@ client.on('message', (topic, message) => {
         deviceState.foodLevel = data.foodLevel;
         deviceState.lastUpdate = data.timestamp;
 
+        console.log("foodLevel: ", deviceState.foodLevel);
+
         // Send alert if food level low
         if (data.foodLevel < 20) {
             console.log('Low food alert!');
@@ -36,7 +43,11 @@ app.get('/status', (req, res) => {
     res.json(deviceState);
 });
 
-app.get('/feed', (req, res) => {
+app.post('/feed', (req, res) => {
+    const { portion } = req.body;
+
+    console.log("portion: ", portion);
+    
     client.publish('petfeeder/feedCommand', JSON.stringify({
         cmd: 'FEED',
         timestamp: new Date().toISOString()
