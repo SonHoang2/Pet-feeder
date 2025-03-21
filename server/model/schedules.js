@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
+import { Schema, model } from "mongoose";
 
-const scheduleSchema = new mongoose.Schema({
+const scheduleSchema = new Schema({
     time: {
         type: String,
         required: [true, 'Feeding time is required'],
@@ -38,8 +38,8 @@ const scheduleSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Create a compound unique index on time and portion
-scheduleSchema.index({ time: 1, portion: 1 }, { unique: true });
+// Create a compound unique index on time and days
+scheduleSchema.index({ time: 1, days: 1 }, { unique: true });
 
 // Pre-save hook to validate data
 scheduleSchema.pre('save', function (next) {
@@ -71,6 +71,6 @@ scheduleSchema.statics.findSchedulesForDay = function (dayIndex) {
     });
 };
 
-const Schedule = mongoose.model('Schedule', scheduleSchema);
+const Schedule = model('Schedule', scheduleSchema);
 
-module.exports = Schedule;
+export default Schedule;

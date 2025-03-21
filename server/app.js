@@ -1,12 +1,13 @@
-const express = require('express');
+import express, { json } from 'express';
 const app = express();
-const cors = require('cors');
-const cron = require('node-cron');
+import cors from 'cors';
+import { schedule as _schedule } from 'node-cron';
+import { pendingCommands, deviceState } from './shareVarible.js';
+import Schedule from './model/schedules.js';
 
 app.use(cors());
-app.use(express.json());
+app.use(json());
 
-const scheduledFeedings = [];
 const activeSchedules = new Map();
 
 app.get('/status', (req, res) => {
@@ -80,8 +81,10 @@ function scheduleFeeding(schedule) {
     // Convert to cron format - if days is provided use it, otherwise run daily
     const cronExpression = `${minutes} ${hours} * * ${days || '*'}`;
 
+    console.log(`Creating schedule: ${cronExpression} for ${portion}g`);
+
     // Create cron job
-    const job = cron.schedule(cronExpression, async () => {
+    const job = _schedule(cronExpression, async () => {
         console.log(`Executing scheduled feeding: ${portion}g at ${time}`);
 
         try {
@@ -116,7 +119,12 @@ function scheduleFeeding(schedule) {
             }));
 
             // Wait for device to complete feeding and respond
-            await responsePromise;
+            const result = await responsePromise;
+
+            // Update the lastExecuted time in the database
+            await Schedule.findByIdAndUpdate(id, {
+                lastExecuted: new Date()
+            });
 
         } catch (error) {
             console.error('Error during scheduled feeding:', error);
@@ -125,23 +133,33 @@ function scheduleFeeding(schedule) {
 
     // Store the job reference so we can stop it later if needed
     if (id) {
-        if (activeSchedules.has(id)) {
+        if (activeSchedules.has(id.toString())) {
             // Stop existing job before replacing it
-            activeSchedules.get(id).stop();
+            activeSchedules.get(id.toString()).stop();
         }
-        activeSchedules.set(id, job);
+        activeSchedules.set(id.toString(), job);
     }
 
     return job;
 }
 
-// Add these new endpoints for schedule management
-app.get('/schedules', (req, res) => {
-    res.json(scheduledFeedings);
+// Get all schedules
+app.get('/schedules', async (req, res) => {
+    try {
+        const schedules = await Schedule.find({ active: true });
+        res.json(schedules.map(schedule => schedule.formatSchedule()));
+    } catch (error) {
+        console.error('Error fetching schedules:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to fetch schedules'
+        });
+    }
 });
 
-app.post('/schedules', (req, res) => {
-    const { time, portion } = req.body;
+// Create a new schedule
+app.post('/schedules', async (req, res) => {
+    const { time, portion, days } = req.body;
 
     if (!time || !portion) {
         return res.status(400).json({
@@ -150,46 +168,78 @@ app.post('/schedules', (req, res) => {
         });
     }
 
-    const id = Date.now().toString();
-    const schedule = { id, time, portion, days: '*', active: true };
+    try {
+        // Create new schedule in database
+        const schedule = new Schedule({
+            time,
+            portion: Number(portion),
+            days: days || '*',
+            active: true
+        });
 
-    // Add to our schedule list
-    scheduledFeedings.push(schedule);
+        // Save to database
+        await schedule.save();
 
-    // Create the actual schedule
-    scheduleFeeding(schedule);
+        // Create the actual cron job
+        scheduleFeeding(schedule.formatSchedule());
 
-    res.status(201).json({
-        status: 'success',
-        message: 'Feeding schedule created',
-        schedule
-    });
-});
+        res.status(201).json({
+            status: 'success',
+            message: 'Feeding schedule created',
+            schedule: schedule.formatSchedule()
+        });
+    } catch (error) {
+        console.error('Error creating schedule:', error);
 
-app.delete('/schedules/:id', (req, res) => {
-    const { id } = req.params;
-    const index = scheduledFeedings.findIndex(s => s.id === id);
+        // Better error handling for duplicate schedules
+        if (error.code === 11000) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'A schedule with this time already exists'
+            });
+        }
 
-    if (index === -1) {
-        return res.status(404).json({
+        res.status(500).json({
             status: 'error',
-            message: 'Schedule not found'
+            message: error.message || 'Failed to create schedule'
         });
     }
-
-    // Remove from our array
-    scheduledFeedings.splice(index, 1);
-
-    // Stop the cron job if it exists
-    if (activeSchedules.has(id)) {
-        activeSchedules.get(id).stop();
-        activeSchedules.delete(id);
-    }
-
-    res.json({
-        status: 'success',
-        message: 'Schedule deleted'
-    });
 });
 
-module.exports = app;
+// Delete a schedule
+app.delete('/schedules/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const schedule = await Schedule.findById(id);
+
+        if (!schedule) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'Schedule not found'
+            });
+        }
+
+        // Delete from database
+        await Schedule.findByIdAndDelete(id);
+
+        // Stop the cron job if it exists
+        if (activeSchedules.has(id.toString())) {
+            activeSchedules.get(id.toString()).stop();
+            activeSchedules.delete(id.toString());
+        }
+
+        res.json({
+            status: 'success',
+            message: 'Schedule deleted'
+        });
+    } catch (error) {
+        console.error('Error deleting schedule:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to delete schedule'
+        });
+    }
+});
+
+export default app;

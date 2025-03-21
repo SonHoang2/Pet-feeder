@@ -1,15 +1,16 @@
-const mqtt = require('mqtt');
-const port = 5000;
-const client = mqtt.connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
-const app = require('./app');
+import { connect } from 'mqtt';
+import app from './app.js';
+import mongoose from 'mongoose';
+import config from './config/config.js';
+import { pendingCommands, deviceState } from './shareVarible.js';
 
-// Store fake data
-let deviceState = {
-    foodLevel: 0,
-    lastFeed: null
-};
+mongoose
+.connect(config.db)
+.then(() => console.log('DB connection successfull'));
 
-const pendingCommands = new Map();
+const client = connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
+const port = config.port || 5000;
+
 
 client.on('connect', () => {
     console.log('Server connected to MQTT');
