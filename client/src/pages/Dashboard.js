@@ -5,7 +5,7 @@ import axios from 'axios';
 import { SERVER_URL } from '../config/config';
 
 const Dashboard = () => {
-    const [foodLevel, setFoodLevel] = useState(100);
+    const [foodLevel, setFoodLevel] = useState(null);
     const [portionSize, setPortionSize] = useState(50);
     const [scheduledFeedings] = useState([
         { time: '08:00', portion: 30 },
@@ -31,14 +31,28 @@ const Dashboard = () => {
         client.on('message', (topic, message) => {
             if (topic === 'petfeeder/foodLevel') {
                 const data = JSON.parse(message.toString());
+                console.log('Received food level:', data.foodLevel);
+                
                 setFoodLevel(data.foodLevel);
             }
         });
+
+        getFoodLevel();
 
         return () => {
             client.end();
         };
     }, []);
+
+    const getFoodLevel = async () => {
+        try {
+            const res = await axios.get(SERVER_URL + "/status");
+            
+            setFoodLevel(res.data.foodLevel);
+        } catch (error) {
+            console.error(error);
+        }
+    }
 
     const feed = async () => {
         try {
@@ -48,6 +62,7 @@ const Dashboard = () => {
 
             console.log(res.data);
 
+            setFoodLevel(res.data.foodLevel);
             setShowAlert(true);
 
             // Auto-dismiss alert after 2 seconds
