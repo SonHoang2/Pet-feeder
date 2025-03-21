@@ -12,6 +12,8 @@ const Dashboard = () => {
         { time: '12:30', portion: 40 },
         { time: '18:00', portion: 50 },
     ]);
+    const [errorAlert, setErrorAlert] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
     const [showAlert, setShowAlert] = useState(false);
 
     useEffect(() => {
@@ -29,8 +31,6 @@ const Dashboard = () => {
         client.on('message', (topic, message) => {
             if (topic === 'petfeeder/foodLevel') {
                 const data = JSON.parse(message.toString());
-                console.log(data);
-
                 setFoodLevel(data.foodLevel);
             }
         });
@@ -55,7 +55,18 @@ const Dashboard = () => {
                 setShowAlert(false);
             }, 2000);
         } catch (error) {
-            console.error(error);
+            if (error.response?.data?.message === "Not enough food available for the requested portion") {
+                setErrorMessage("Not enough food available for the requested portion");
+            } else {
+                setErrorMessage(error.message || "An error occurred while feeding");
+                console.error(error);
+            }
+
+            setErrorAlert(true);
+
+            setTimeout(() => {
+                setErrorAlert(false);
+            }, 3000);
         }
     }
     return (
@@ -72,6 +83,25 @@ const Dashboard = () => {
                         </div>
                         <button
                             onClick={() => setShowAlert(false)}
+                            className="ml-6 text-gray-400 hover:text-gray-600"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+            )}
+            {errorAlert && (
+                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
+                    <div className="bg-white py-4 px-6 rounded-xl shadow-2xl border border-red-300 flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-400 to-red-500 flex items-center justify-center">
+                            <X className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-gray-800">Error</h3>
+                            <p className="text-sm text-gray-600">{errorMessage}</p>
+                        </div>
+                        <button
+                            onClick={() => setErrorAlert(false)}
                             className="ml-6 text-gray-400 hover:text-gray-600"
                         >
                             <X className="w-5 h-5" />
@@ -103,7 +133,6 @@ const Dashboard = () => {
                                 <Database className="w-6 h-6 text-blue-600" />
                                 <span>Food Storage</span>
                             </h2>
-                            <span className="text-sm text-blue-600 font-medium">Refill</span>
                         </div>
                         <div className="relative w-full aspect-square max-w-[200px] mx-auto">
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
