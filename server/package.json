@@ -2,7 +2,8 @@
     "dependencies": {
         "cors": "^2.8.5",
         "express": "^4.21.2",
-        "mqtt": "^5.10.4"
+        "mqtt": "^5.10.4",
+        "node-cron": "^3.0.3"
     },
     "scripts": {
         "start": "node server.js"

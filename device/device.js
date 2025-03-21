@@ -12,9 +12,6 @@ client.on('connect', () => {
 
     // Send periodic updates
     setInterval(() => {
-        // Simulate food consumption
-        if (!isFeeding) foodLevel = Math.max(0, Math.ceil(foodLevel - Math.random() * 2));
-
         // Publish sensor data
         client.publish('petfeeder/foodLevel', JSON.stringify({
             deviceId: 'feeder-001',
