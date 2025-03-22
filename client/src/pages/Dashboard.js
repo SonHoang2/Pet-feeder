@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, Settings, Check, X } from 'react-feather';
 import mqtt from 'mqtt';
 import axios from 'axios';
 import { SERVER_URL } from '../config/config';
+import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, Settings, Check, X, Trash2 } from 'react-feather';
 
 const Dashboard = () => {
     const [foodLevel, setFoodLevel] = useState(null);
@@ -11,10 +11,14 @@ const Dashboard = () => {
     const [errorAlert, setErrorAlert] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [showAlert, setShowAlert] = useState(false);
+
     const [showScheduleForm, setShowScheduleForm] = useState(false);
     const [newScheduleTime, setNewScheduleTime] = useState("");
     const [newSchedulePortion, setNewSchedulePortion] = useState(50);
 
+    const [editingScheduleId, setEditingScheduleId] = useState(null);
+    const [editScheduleTime, setEditScheduleTime] = useState("");
+    const [editSchedulePortion, setEditSchedulePortion] = useState(50);
     useEffect(() => {
         // Connect using WebSocket if supported
         const client = mqtt.connect('ws://localhost:9001');
@@ -71,6 +75,70 @@ const Dashboard = () => {
             setTimeout(() => {
                 setErrorAlert(false);
             }, 3000);
+        }
+    };
+
+    const startEditing = (schedule) => {
+        setEditingScheduleId(schedule.id);
+        setEditScheduleTime(schedule.time);
+        setEditSchedulePortion(schedule.portion);
+    };
+
+    const cancelEditing = () => {
+        setEditingScheduleId(null);
+    };
+
+    const updateSchedule = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.put(`${SERVER_URL}/schedules/${editingScheduleId}`, {
+                time: editScheduleTime,
+                portion: editSchedulePortion
+            });
+
+            // Refresh schedules
+            getSchedule();
+
+            // Close edit form
+            setEditingScheduleId(null);
+
+            // Show success alert
+            setShowAlert(true);
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 2000);
+        } catch (error) {
+            setErrorMessage(error.message || "Failed to update schedule");
+            setErrorAlert(true);
+            setTimeout(() => {
+                setErrorAlert(false);
+            }, 3000);
+        }
+    };
+
+    const deleteSchedule = async (id) => {
+        if (window.confirm("Are you sure you want to delete this schedule?")) {
+            try {
+                await axios.delete(`${SERVER_URL}/schedules/${id}`);
+
+                // Refresh schedules
+                getSchedule();
+
+                // Close edit form if open
+                setEditingScheduleId(null);
+
+                // Show success alert
+                setShowAlert(true);
+                setTimeout(() => {
+                    setShowAlert(false);
+                }, 2000);
+            } catch (error) {
+                setErrorMessage(error.message || "Failed to delete schedule");
+                setErrorAlert(true);
+                setTimeout(() => {
+                    setErrorAlert(false);
+                }, 3000);
+            }
         }
     };
 
@@ -276,22 +344,84 @@ const Dashboard = () => {
                         )}
                         <div className="space-y-4">
                             {schedules?.map((feeding, index) => (
-                                <div key={index} className="group flex items-center justify-between p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="p-2 bg-blue-50 rounded-lg">
-                                            <Clock className="w-5 h-5 text-blue-600" />
+                                <div key={index} className="group flex flex-col p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                                    {editingScheduleId === feeding.id ? (
+                                        // Edit form
+                                        <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 animate-fadeIn">
+                                            <form onSubmit={updateSchedule} className="space-y-4">
+                                                <div>
+                                                    <label className="block text-sm text-gray-600 mb-1">Feeding Time</label>
+                                                    <input
+                                                        type="time"
+                                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-300 focus:border-purple-300 outline-none"
+                                                        value={editScheduleTime}
+                                                        onChange={(e) => setEditScheduleTime(e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <div className="flex justify-between text-sm text-gray-600 mb-1">
+                                                        <label>Portion Size</label>
+                                                        <span className="font-bold text-purple-600">{editSchedulePortion}g</span>
+                                                    </div>
+                                                    <input
+                                                        type="range"
+                                                        min="10"
+                                                        max="100"
+                                                        className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-purple-600"
+                                                        value={editSchedulePortion}
+                                                        onChange={(e) => setEditSchedulePortion(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="flex justify-between space-x-2 pt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => deleteSchedule(feeding.id)}
+                                                        className="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors flex items-center"
+                                                    >
+                                                        <Trash2 className="w-4 h-4 mr-1" /> Delete
+                                                    </button>
+                                                    <div className="flex space-x-2">
+                                                        <button
+                                                            type="button"
+                                                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                                            onClick={cancelEditing}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button
+                                                            type="submit"
+                                                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </form>
                                         </div>
-                                        <div>
-                                            <h3 className="font-semibold text-gray-800">{feeding.time}</h3>
-                                            <p className="text-sm text-gray-500">Daily schedule</p>
+                                    ) : (
+                                        // Normal schedule display
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-4">
+                                                <div className="p-2 bg-blue-50 rounded-lg">
+                                                    <Clock className="w-5 h-5 text-blue-600" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-semibold text-gray-800">{feeding.time}</h3>
+                                                    <p className="text-sm text-gray-500">Daily schedule</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-6">
+                                                <span className="text-lg font-bold text-purple-600">{feeding.portion}g</span>
+                                                <button
+                                                    className="text-gray-400 hover:text-purple-600 transition-colors"
+                                                    onClick={() => startEditing(feeding)}
+                                                >
+                                                    <Sliders className="w-5 h-5" />
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex items-center space-x-6">
-                                        <span className="text-lg font-bold text-purple-600">{feeding.portion}g</span>
-                                        <button className="text-gray-400 hover:text-purple-600 transition-colors">
-                                            <Sliders className="w-5 h-5" />
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

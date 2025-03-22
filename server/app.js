@@ -149,7 +149,7 @@ app.get('/schedules', async (req, res) => {
         const schedules = await Schedule.find({ active: true });
         res.json({
             status: 'success',
-            schedules
+            schedules: schedules.map(schedule => schedule.formatSchedule())
         });
     } catch (error) {
         console.error('Error fetching schedules:', error);
