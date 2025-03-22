@@ -1,14 +1,13 @@
-import { connect } from 'mqtt';
 import app from './app.js';
 import mongoose from 'mongoose';
 import config from './config/config.js';
-import { pendingCommands, deviceState } from './shareVarible.js';
+import { pendingCommands, deviceState, client } from './shareVarible.js';
 
 mongoose
-.connect(config.db)
-.then(() => console.log('DB connection successfull'));
+    .connect(config.db)
+    .then(() => console.log('DB connection successfull'));
 
-const client = connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
+
 const port = config.port || 5000;
 
 

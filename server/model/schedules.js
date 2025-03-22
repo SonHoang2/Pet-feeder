@@ -38,7 +38,6 @@ const scheduleSchema = new Schema({
     timestamps: true
 });
 
-// Create a compound unique index on time and days
 scheduleSchema.index({ time: 1, days: 1 }, { unique: true });
 
 // Pre-save hook to validate data

@@ -2,7 +2,7 @@ import express, { json } from 'express';
 const app = express();
 import cors from 'cors';
 import { schedule as _schedule } from 'node-cron';
-import { pendingCommands, deviceState } from './shareVarible.js';
+import { pendingCommands, deviceState, client } from './shareVarible.js';
 import Schedule from './model/schedules.js';
 
 app.use(cors());
@@ -147,7 +147,10 @@ function scheduleFeeding(schedule) {
 app.get('/schedules', async (req, res) => {
     try {
         const schedules = await Schedule.find({ active: true });
-        res.json(schedules.map(schedule => schedule.formatSchedule()));
+        res.json({
+            status: 'success',
+            schedules
+        });
     } catch (error) {
         console.error('Error fetching schedules:', error);
         res.status(500).json({
