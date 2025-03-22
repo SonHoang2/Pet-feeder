@@ -47,7 +47,7 @@ const Dashboard = () => {
     const addSchedule = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.post(SERVER_URL + "/schedules", {
+            await axios.post(SERVER_URL + "/schedules", {
                 time: newScheduleTime,
                 portion: newSchedulePortion
             });
@@ -66,7 +66,7 @@ const Dashboard = () => {
                 setShowAlert(false);
             }, 2000);
         } catch (error) {
-            setErrorMessage(error.message || "Failed to add schedule");
+            setErrorMessage(error?.response?.data?.message || "Failed to add schedule");
             setErrorAlert(true);
             setTimeout(() => {
                 setErrorAlert(false);
