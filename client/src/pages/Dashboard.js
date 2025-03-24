@@ -3,14 +3,17 @@ import mqtt from 'mqtt';
 import axios from 'axios';
 import { SERVER_URL } from '../config/config';
 import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, Settings, Check, X, Trash2 } from 'react-feather';
+import Alert from '../components/Alert'
 
 const Dashboard = () => {
     const [foodLevel, setFoodLevel] = useState(null);
     const [portionSize, setPortionSize] = useState(50);
     const [schedules, SetSchedules] = useState([]);
-    const [errorAlert, setErrorAlert] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
-    const [showAlert, setShowAlert] = useState(false);
+    const [alerts, setAlerts] = useState({
+        success: { show: false, message: "", title: "Success!" },
+        error: { show: false, message: "", title: "Error" },
+        warning: { show: false, message: "", title: "Warning" },
+    });
 
     const [showScheduleForm, setShowScheduleForm] = useState(false);
     const [newScheduleTime, setNewScheduleTime] = useState("");
@@ -19,6 +22,7 @@ const Dashboard = () => {
     const [editingScheduleId, setEditingScheduleId] = useState(null);
     const [editScheduleTime, setEditScheduleTime] = useState("");
     const [editSchedulePortion, setEditSchedulePortion] = useState(50);
+
     useEffect(() => {
         // Connect using WebSocket if supported
         const client = mqtt.connect('ws://localhost:9001');
@@ -37,6 +41,10 @@ const Dashboard = () => {
                 console.log('Received food level:', data.foodLevel);
 
                 setFoodLevel(data.foodLevel);
+
+                if (data.foodLevel < 20) {
+                    showWarningAlert('Food level is below 20%. Please refill soon.', 'Low Food Alert');
+                }
             }
         });
 
@@ -48,6 +56,45 @@ const Dashboard = () => {
         };
     }, []);
 
+    const showSuccessAlert = (message, title = "Success!") => {
+        setAlerts({
+            ...alerts,
+            success: { show: true, message, title }
+        });
+        setTimeout(() => {
+            setAlerts(prev => ({
+                ...prev,
+                success: { ...prev.success, show: false }
+            }));
+        }, 2000);
+    };
+
+    const showErrorAlert = (message, title = "Error") => {
+        setAlerts({
+            ...alerts,
+            error: { show: true, message, title }
+        });
+        setTimeout(() => {
+            setAlerts(prev => ({
+                ...prev,
+                error: { ...prev.error, show: false }
+            }));
+        }, 3000);
+    };
+
+    const showWarningAlert = (message, title = "Warning") => {
+        setAlerts({
+            ...alerts,
+            warning: { show: true, message, title }
+        });
+        setTimeout(() => {
+            setAlerts(prev => ({
+                ...prev,
+                warning: { ...prev.warning, show: false }
+            }));
+        }, 3000);
+    };
+
     const addSchedule = async (e) => {
         e.preventDefault();
         try {
@@ -55,26 +102,19 @@ const Dashboard = () => {
                 time: newScheduleTime,
                 portion: newSchedulePortion
             });
-
+    
             // Update schedules list
             getSchedule();
-
+    
             // Reset form and hide it
             setNewScheduleTime("");
             setNewSchedulePortion(50);
             setShowScheduleForm(false);
-
-            // Show success alert
-            setShowAlert(true);
-            setTimeout(() => {
-                setShowAlert(false);
-            }, 2000);
+    
+            // Show success alert using the new alert system
+            showSuccessAlert("Schedule added successfully");
         } catch (error) {
-            setErrorMessage(error?.response?.data?.message || "Failed to add schedule");
-            setErrorAlert(true);
-            setTimeout(() => {
-                setErrorAlert(false);
-            }, 3000);
+            showErrorAlert(error?.response?.data?.message || "Failed to add schedule");
         }
     };
 
@@ -95,49 +135,36 @@ const Dashboard = () => {
                 time: editScheduleTime,
                 portion: editSchedulePortion
             });
-
+    
             // Refresh schedules
             getSchedule();
-
+    
             // Close edit form
             setEditingScheduleId(null);
-
-            // Show success alert
-            setShowAlert(true);
-            setTimeout(() => {
-                setShowAlert(false);
-            }, 2000);
+    
+            // Show success alert using the new alert system
+            showSuccessAlert("Schedule updated successfully");
         } catch (error) {
-            setErrorMessage(error.message || "Failed to update schedule");
-            setErrorAlert(true);
-            setTimeout(() => {
-                setErrorAlert(false);
-            }, 3000);
+            showErrorAlert(error?.response?.data?.message || "Failed to update schedule");
         }
     };
+    
 
     const deleteSchedule = async (id) => {
         if (window.confirm("Are you sure you want to delete this schedule?")) {
             try {
                 await axios.delete(`${SERVER_URL}/schedules/${id}`);
-
+    
                 // Refresh schedules
                 getSchedule();
-
+    
                 // Close edit form if open
                 setEditingScheduleId(null);
-
-                // Show success alert
-                setShowAlert(true);
-                setTimeout(() => {
-                    setShowAlert(false);
-                }, 2000);
+    
+                // Show success alert using the new alert system
+                showSuccessAlert("Schedule deleted successfully");
             } catch (error) {
-                setErrorMessage(error.message || "Failed to delete schedule");
-                setErrorAlert(true);
-                setTimeout(() => {
-                    setErrorAlert(false);
-                }, 3000);
+                showErrorAlert(error?.response?.data?.message || "Failed to delete schedule");
             }
         }
     };
@@ -171,67 +198,41 @@ const Dashboard = () => {
             console.log(res.data);
 
             setFoodLevel(res.data.foodLevel);
-            setShowAlert(true);
+            showSuccessAlert(`Food dispensed: ${portionSize}g`);
 
-            // Auto-dismiss alert after 2 seconds
-            setTimeout(() => {
-                setShowAlert(false);
-            }, 2000);
         } catch (error) {
             if (error.response?.data?.message === "Not enough food available for the requested portion") {
-                setErrorMessage("Not enough food available for the requested portion");
+                showErrorAlert("Not enough food available for the requested portion");
             } else {
-                setErrorMessage(error.message || "An error occurred while feeding");
+                showErrorAlert(error.message || "An error occurred while feeding");
                 console.error(error);
             }
-
-            setErrorAlert(true);
-
-            setTimeout(() => {
-                setErrorAlert(false);
-            }, 3000);
         }
-    }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
-            {showAlert && (
-                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
-                    <div className="bg-white py-4 px-6 rounded-xl shadow-2xl border border-green-300 flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center">
-                            <Check className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-gray-800">Success!</h3>
-                            <p className="text-sm text-gray-600">Food dispensed: {portionSize}g</p>
-                        </div>
-                        <button
-                            onClick={() => setShowAlert(false)}
-                            className="ml-6 text-gray-400 hover:text-gray-600"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-            )}
-            {errorAlert && (
-                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
-                    <div className="bg-white py-4 px-6 rounded-xl shadow-2xl border border-red-300 flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-400 to-red-500 flex items-center justify-center">
-                            <X className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-gray-800">Error</h3>
-                            <p className="text-sm text-gray-600">{errorMessage}</p>
-                        </div>
-                        <button
-                            onClick={() => setErrorAlert(false)}
-                            className="ml-6 text-gray-400 hover:text-gray-600"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-            )}
+            <Alert
+                type="success"
+                title={alerts.success.title}
+                message={alerts.success.message}
+                isVisible={alerts.success.show}
+                onClose={() => setAlerts(prev => ({ ...prev, success: { ...prev.success, show: false } }))}
+            />
+            <Alert
+                type="error"
+                title={alerts.error.title}
+                message={alerts.error.message}
+                isVisible={alerts.error.show}
+                onClose={() => setAlerts(prev => ({ ...prev, error: { ...prev.error, show: false } }))}
+            />
+            <Alert
+                type="warning"
+                title={alerts.warning.title}
+                message={alerts.warning.message}
+                isVisible={alerts.warning.show}
+                onClose={() => setAlerts(prev => ({ ...prev, warning: { ...prev.warning, show: false } }))}
+            />
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="flex justify-between items-center">
