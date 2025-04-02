@@ -2,8 +2,8 @@ const mqtt = require('mqtt');
 const client = mqtt.connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
 
 // Fake data parameters
-let foodLevel = 100; // percentage
-let isFeeding = false;
+const maxFoodWeight = 1000; // grams (1kg capacity)
+let currentFoodWeight = 1000; // grams
 
 client.on('connect', () => {
     console.log('Device connected to MQTT');
@@ -13,9 +13,10 @@ client.on('connect', () => {
     // Send periodic updates
     setInterval(() => {
         // Publish sensor data
-        client.publish('petfeeder/foodLevel', JSON.stringify({
+        client.publish('petfeeder/currentFoodWeight', JSON.stringify({
             deviceId: 'feeder-001',
-            foodLevel: foodLevel,
+            currentFoodWeight: currentFoodWeight,
+            maxFoodWeight: maxFoodWeight,
             timestamp: new Date().toISOString()
         }));
     }, 5000);
@@ -30,19 +31,17 @@ client.on('message', (topic, message) => {
 
             console.log(`Received feeding request for portion: ${portion}g`);
 
-            const reductionRate = 0.5;
-            const reduction = portion * reductionRate;
-
             // Check if there's enough food for the requested portion
-            if (reduction > foodLevel) {
-                console.log(`Error: Not enough food. Requested ${portion}g requires ${reduction}% but only ${foodLevel}% available.`);
+            if (portion > currentFoodWeight) {
+                console.log(`Error: Not enough food. Requires ${portion}g but only ${currentFoodWeight}g available.`);
 
                 // Send error response back to server
                 client.publish('petfeeder/feedResponse', JSON.stringify({
                     status: 'error',
                     requestId: requestId,
                     message: 'Not enough food available for the requested portion',
-                    foodLevel: foodLevel,
+                    currentFoodWeight: currentFoodWeight,
+                    maxFoodWeight: maxFoodWeight,
                     requestedReduction: reduction,
                     timestamp: new Date().toISOString()
                 }));
@@ -51,22 +50,20 @@ client.on('message', (topic, message) => {
 
             console.log(`Triggering feeding mechanism with portion: ${portion}g`);
 
-            // Reduce food level only if there's enough food
-            foodLevel = Math.max(0, foodLevel - reduction);
-            isFeeding = true;
-
             const feedingTime = 1000 + (portion * 40);
+            currentFoodWeight -= portion; // Reduce the food weight
 
             console.log('feedingTime:', feedingTime);
             setTimeout(() => {
-                isFeeding = false;
-                console.log(`Feeding complete. Food level: ${foodLevel}%`);
+                console.log(`Feeding complete. Food level: ${currentFoodWeight}g`);
 
                 // Send confirmation back to server
                 client.publish('petfeeder/feedResponse', JSON.stringify({
                     status: 'success',
                     requestId: requestId,
-                    foodLevel: foodLevel,
+                    feedingTime: feedingTime,
+                    currentFoodWeight: currentFoodWeight,
+                    maxFoodWeight: maxFoodWeight,
                     timestamp: new Date().toISOString()
                 }));
             }, feedingTime);

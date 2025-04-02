@@ -209,6 +209,70 @@ app.post('/schedules', async (req, res) => {
     }
 });
 
+// Update a schedule
+app.patch('/schedules/:id', async (req, res) => {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Validate input data
+    if (updates.portion && isNaN(Number(updates.portion))) {
+        return res.status(400).json({
+            status: 'error',
+            message: 'Portion must be a number'
+        });
+    }
+
+    try {
+        // Convert portion to number if provided
+        if (updates.portion) {
+            updates.portion = Number(updates.portion);
+        }
+
+        // Find and update the schedule
+        const updatedSchedule = await Schedule.findByIdAndUpdate(
+            id,
+            updates,
+            { new: true } // Return updated document
+        );
+
+        if (!updatedSchedule) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'Schedule not found'
+            });
+        }
+
+        // Update the cron job if schedule is active
+        if (updatedSchedule.active) {
+            // Stop existing job if it exists
+            if (activeSchedules.has(id.toString())) {
+                activeSchedules.get(id.toString()).stop();
+            }
+
+            // Create new job with updated schedule
+            scheduleFeeding(updatedSchedule.formatSchedule());
+        } else {
+            // If schedule was deactivated, stop the job
+            if (activeSchedules.has(id.toString())) {
+                activeSchedules.get(id.toString()).stop();
+                activeSchedules.delete(id.toString());
+            }
+        }
+
+        res.json({
+            status: 'success',
+            message: 'Schedule updated successfully',
+            schedule: updatedSchedule.formatSchedule()
+        });
+    } catch (error) {
+        console.error('Error updating schedule:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to update schedule'
+        });
+    }
+});
+
 // Delete a schedule
 app.delete('/schedules/:id', async (req, res) => {
     const { id } = req.params;

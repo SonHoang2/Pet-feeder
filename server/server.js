@@ -13,19 +13,22 @@ const port = config.port || 5000;
 
 client.on('connect', () => {
     console.log('Server connected to MQTT');
-    client.subscribe('petfeeder/foodLevel');
+    client.subscribe('petfeeder/currentFoodWeight');
     client.subscribe('petfeeder/feedResponse');
 });
 
 client.on('message', (topic, message) => {
-    if (topic === 'petfeeder/foodLevel') {
+    if (topic === 'petfeeder/currentFoodWeight') {
         const data = JSON.parse(message);
-        deviceState.foodLevel = data.foodLevel;
+        deviceState.currentFoodWeight = data.currentFoodWeight;
         deviceState.lastUpdate = data.timestamp;
+        deviceState.maxFoodWeight = data.maxFoodWeight;
 
-        console.log("foodLevel: ", deviceState.foodLevel);
+        const percentage = (deviceState.currentFoodWeight / deviceState.maxFoodWeight) * 100;
 
-        if (data.foodLevel < 20) {
+        console.log("currentFoodWeight: ", deviceState.currentFoodWeight);
+
+        if (percentage < 20) {
             console.log('Low food alert!');
         }
     }
