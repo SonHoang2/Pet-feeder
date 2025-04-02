@@ -6,13 +6,18 @@ import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, S
 import Alert from '../components/Alert'
 
 const Dashboard = () => {
-    const [foodLevel, setFoodLevel] = useState(null);
+    const [foodWeight, setFoodWeight] = useState({
+        currentFoodWeight: null,
+        maxFoodWeight: null,
+        percentage: null,
+    });
     const [portionSize, setPortionSize] = useState(50);
     const [schedules, SetSchedules] = useState([]);
     const [alerts, setAlerts] = useState({
         success: { show: false, message: "", title: "Success!" },
         error: { show: false, message: "", title: "Error" },
         warning: { show: false, message: "", title: "Warning" },
+        loading: { show: false, message: "", title: "Loading" },
     });
 
     const [showScheduleForm, setShowScheduleForm] = useState(false);
@@ -28,7 +33,7 @@ const Dashboard = () => {
         const client = mqtt.connect('ws://localhost:9001');
 
         client.on('connect', () => {
-            client.subscribe('petfeeder/foodLevel', (err) => {
+            client.subscribe('petfeeder/currentFoodWeight', (err) => {
                 if (!err) {
                     console.log('Subscribed to food level topic');
                 }
@@ -36,25 +41,52 @@ const Dashboard = () => {
         });
 
         client.on('message', (topic, message) => {
-            if (topic === 'petfeeder/foodLevel') {
+            console.log(`Received message on topic ${topic}:`, message.toString());
+
+            if (topic === 'petfeeder/currentFoodWeight') {
                 const data = JSON.parse(message.toString());
-                console.log('Received food level:', data.foodLevel);
 
-                setFoodLevel(data.foodLevel);
+                const { currentFoodWeight, maxFoodWeight } = data;
+                const percentage = Math.round((currentFoodWeight / maxFoodWeight) * 100);
 
-                if (data.foodLevel < 20) {
+                console.log('Received food level:', percentage);
+                console.log('Current food weight:', currentFoodWeight);
+
+                setFoodWeight(prev => ({
+                    ...prev,
+                    currentFoodWeight: data.currentFoodWeight,
+                    maxFoodWeight: data.maxFoodWeight,
+                    percentage: percentage,
+                }));
+
+                if (percentage < 20) {
                     showWarningAlert('Food level is below 20%. Please refill soon.', 'Low Food Alert');
                 }
             }
         });
 
-        getFoodLevel();
+        getFoodWeight();
         getSchedule();
 
         return () => {
             client.end();
         };
     }, []);
+
+    const showLoadingAlert = (message, title = "Processing...") => {
+        setAlerts({
+            ...alerts,
+            loading: { show: true, message, title }
+        });
+
+    };
+
+    const hideLoadingAlert = () => {
+        setAlerts(prev => ({
+            ...prev,
+            loading: { ...prev.loading, show: false }
+        }));
+    };
 
     const showSuccessAlert = (message, title = "Success!") => {
         setAlerts({
@@ -102,15 +134,15 @@ const Dashboard = () => {
                 time: newScheduleTime,
                 portion: newSchedulePortion
             });
-    
+
             // Update schedules list
             getSchedule();
-    
+
             // Reset form and hide it
             setNewScheduleTime("");
             setNewSchedulePortion(50);
             setShowScheduleForm(false);
-    
+
             // Show success alert using the new alert system
             showSuccessAlert("Schedule added successfully");
         } catch (error) {
@@ -131,36 +163,36 @@ const Dashboard = () => {
     const updateSchedule = async (e) => {
         e.preventDefault();
         try {
-            await axios.put(`${SERVER_URL}/schedules/${editingScheduleId}`, {
+            await axios.patch(`${SERVER_URL}/schedules/${editingScheduleId}`, {
                 time: editScheduleTime,
                 portion: editSchedulePortion
             });
-    
+
             // Refresh schedules
             getSchedule();
-    
+
             // Close edit form
             setEditingScheduleId(null);
-    
+
             // Show success alert using the new alert system
             showSuccessAlert("Schedule updated successfully");
         } catch (error) {
             showErrorAlert(error?.response?.data?.message || "Failed to update schedule");
         }
     };
-    
+
 
     const deleteSchedule = async (id) => {
         if (window.confirm("Are you sure you want to delete this schedule?")) {
             try {
                 await axios.delete(`${SERVER_URL}/schedules/${id}`);
-    
+
                 // Refresh schedules
                 getSchedule();
-    
+
                 // Close edit form if open
                 setEditingScheduleId(null);
-    
+
                 // Show success alert using the new alert system
                 showSuccessAlert("Schedule deleted successfully");
             } catch (error) {
@@ -179,11 +211,20 @@ const Dashboard = () => {
         }
     }
 
-    const getFoodLevel = async () => {
+    const getFoodWeight = async () => {
         try {
             const res = await axios.get(SERVER_URL + "/status");
 
-            setFoodLevel(res.data.foodLevel);
+            const { currentFoodWeight, maxFoodWeight } = res.data;
+
+            const percentage = Math.round((currentFoodWeight / maxFoodWeight) * 100);
+
+            setFoodWeight(prev => ({
+                ...prev,
+                currentFoodWeight: currentFoodWeight,
+                maxFoodWeight: maxFoodWeight,
+                percentage: percentage,
+            }));
         } catch (error) {
             console.error(error);
         }
@@ -191,13 +232,15 @@ const Dashboard = () => {
 
     const feed = async () => {
         try {
+            showLoadingAlert("Dispensing food...", "Please wait");
+
             const res = await axios.post(SERVER_URL + "/feed", {
                 portion: portionSize,
             });
 
             console.log(res.data);
 
-            setFoodLevel(res.data.foodLevel);
+            hideLoadingAlert();
             showSuccessAlert(`Food dispensed: ${portionSize}g`);
 
         } catch (error) {
@@ -233,6 +276,13 @@ const Dashboard = () => {
                 isVisible={alerts.warning.show}
                 onClose={() => setAlerts(prev => ({ ...prev, warning: { ...prev.warning, show: false } }))}
             />
+            <Alert
+                type="loading"
+                title={alerts.loading.title}
+                message={alerts.loading.message}
+                isVisible={alerts.loading.show}
+                onClose={() => setAlerts(prev => ({ ...prev, loading: { ...prev.loading, show: false } }))}
+            />
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="flex justify-between items-center">
@@ -259,26 +309,63 @@ const Dashboard = () => {
                             </h2>
                         </div>
                         <div className="relative w-full aspect-square max-w-[200px] mx-auto">
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <div className="text-5xl font-bold text-gradient">
-                                    {foodLevel}%
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                                <div className="text-4xl font-bold text-gradient bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                    {foodWeight.percentage}%
                                 </div>
-                                <span className="text-gray-500 text-sm">Remaining</span>
+                                <div className="text-gray-600 text-sm font-medium">
+                                    {foodWeight.currentFoodWeight}g / {foodWeight.maxFoodWeight}g
+                                </div>
+                                <span className="text-gray-400 text-xs">Remaining</span>
                             </div>
-                            <svg className="transform -rotate-90 w-full h-full">
+
+                            <svg className="w-full h-full" viewBox="0 0 100 100">
+                                {/* Background circle with subtle shadow */}
+                                <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    className="fill-white stroke-gray-100"
+                                    strokeWidth="8"
+                                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}
+                                />
+
+                                {/* Progress track */}
+                                <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    className="stroke-gray-200"
+                                    strokeWidth="8"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                />
+
+                                {/* Progress indicator with gradient and animation */}
+                                <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    className="stroke-[url(#gradient)]"
+                                    strokeWidth="8"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    strokeDasharray={283} // 2 * π * 45
+                                    strokeDashoffset={283 * (1 - foodWeight.percentage / 100)}
+                                    style={{
+                                        transition: 'stroke-dashoffset 0.8s ease-out',
+                                        transform: 'rotate(-90deg)',
+                                        transformOrigin: '50% 50%'
+                                    }}
+                                />
+
                                 <defs>
                                     <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" style={{ stopColor: '#2563eb' }} />
-                                        <stop offset="100%" style={{ stopColor: '#9333ea' }} />
+                                        <stop offset="0%" stopColor="#3b82f6" />
+                                        <stop offset="50%" stopColor="#8b5cf6" />
+                                        <stop offset="100%" stopColor="#ec4899" />
                                     </linearGradient>
                                 </defs>
-                                <circle cx="50%" cy="50%" r="45%" className="stroke-current text-gray-200"
-                                    strokeWidth="8%" fill="none" />
-                                <circle cx="50%" cy="50%" r="45%" className="gradient-stroke"
-                                    strokeWidth="8%" fill="none"
-                                    strokeDasharray={`${2 * Math.PI * 45}%`}
-                                    strokeDashoffset={`${2 * Math.PI * 45 * (1 - foodLevel / 100)}%`}
-                                />
                             </svg>
                         </div>
                     </div>
