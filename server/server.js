@@ -7,7 +7,6 @@ mongoose
     .connect(config.db)
     .then(() => console.log('DB connection successfull'));
 
-
 const port = config.port || 5000;
 
 

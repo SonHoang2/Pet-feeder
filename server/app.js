@@ -4,6 +4,7 @@ import cors from 'cors';
 import { schedule as _schedule } from 'node-cron';
 import { pendingCommands, deviceState, client } from './shareVarible.js';
 import Schedule from './model/schedules.js';
+import FeedingLog from './model/feeding_logs.js';
 
 app.use(cors());
 app.use(json());
@@ -12,6 +13,18 @@ const activeSchedules = new Map();
 
 app.get('/status', (req, res) => {
     res.json(deviceState);
+});
+
+app.get('/feed/recommendation', async (req, res) => {
+    try {
+
+    } catch (error) {
+        console.error('Error fetching recommendation:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to fetch recommendation'
+        });
+    }
 });
 
 app.post('/feed', async (req, res) => {
@@ -58,12 +71,18 @@ app.post('/feed', async (req, res) => {
 
         // Wait for device to complete feeding and respond
         const feedResult = await responsePromise;
+        
+        await FeedingLog.create({
+            portion: Number(portion),
+        });
 
         res.status(200).json({
             status: 'success',
             message: 'Feeding completed successfully',
             portion: Number(portion) || 50,
-            foodLevel: feedResult.foodLevel
+            currentFoodWeight: feedResult.currentFoodWeight,
+            maxFoodWeight: feedResult.maxFoodWeight,
+            feedingTime: feedResult.feedingTime,
         });
     } catch (error) {
         console.error('Error in feeding process:', error);

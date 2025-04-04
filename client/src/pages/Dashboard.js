@@ -238,10 +238,10 @@ const Dashboard = () => {
                 portion: portionSize,
             });
 
-            console.log(res.data);
+            console.log("res.data", res.data);
 
             hideLoadingAlert();
-            showSuccessAlert(`Food dispensed: ${portionSize}g`);
+            showSuccessAlert(`Food dispensed: ${portionSize}g. Time feeding: ${res.data.feedingTime} seconds`);
 
         } catch (error) {
             if (error.response?.data?.message === "Not enough food available for the requested portion") {
