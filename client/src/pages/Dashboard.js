@@ -2,15 +2,31 @@ import { useState, useEffect } from 'react';
 import mqtt from 'mqtt';
 import axios from 'axios';
 import { SERVER_URL } from '../config/config';
-import { Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package, Settings, Check, X, Trash2 } from 'react-feather';
 import Alert from '../components/Alert'
+import {
+    Clock, PlusCircle, Sliders, ChevronRight, Database, Droplet, Package,
+    Settings, Check, X, Trash2, Coffee, Sunrise, Sun, Sunset, Zap, Info
+} from 'react-feather';
 
 const Dashboard = () => {
-    const [foodWeight, setFoodWeight] = useState({
-        currentFoodWeight: null,
-        maxFoodWeight: null,
+    const [storageWeight, setStorageWeight] = useState({
+        currentFoodStorageWeight: null,
+        maxFoodStorageWeight: null,
         percentage: null,
     });
+
+    const [bowlWeight, setBowlWeight] = useState({
+        percentage: 90,
+        currentWeight: 100,
+        maxCapacity: 150
+    });
+
+    const [recommendations, setRecommendations] = useState({
+        morning: null,
+        noon: null,
+        afternoon: null
+    });
+
     const [portionSize, setPortionSize] = useState(50);
     const [schedules, SetSchedules] = useState([]);
     const [alerts, setAlerts] = useState({
@@ -33,7 +49,7 @@ const Dashboard = () => {
         const client = mqtt.connect('ws://localhost:9001');
 
         client.on('connect', () => {
-            client.subscribe('petfeeder/currentFoodWeight', (err) => {
+            client.subscribe('petfeeder/currentFoodStorageWeight', (err) => {
                 if (!err) {
                     console.log('Subscribed to food level topic');
                 }
@@ -43,19 +59,19 @@ const Dashboard = () => {
         client.on('message', (topic, message) => {
             console.log(`Received message on topic ${topic}:`, message.toString());
 
-            if (topic === 'petfeeder/currentFoodWeight') {
+            if (topic === 'petfeeder/currentFoodStorageWeight') {
                 const data = JSON.parse(message.toString());
 
-                const { currentFoodWeight, maxFoodWeight } = data;
-                const percentage = Math.round((currentFoodWeight / maxFoodWeight) * 100);
+                const { currentFoodStorageWeight, maxFoodStorageWeight } = data;
+                const percentage = Math.round((currentFoodStorageWeight / maxFoodStorageWeight) * 100);
 
                 console.log('Received food level:', percentage);
-                console.log('Current food weight:', currentFoodWeight);
+                console.log('Current food weight:', currentFoodStorageWeight);
 
-                setFoodWeight(prev => ({
+                setStorageWeight(prev => ({
                     ...prev,
-                    currentFoodWeight: data.currentFoodWeight,
-                    maxFoodWeight: data.maxFoodWeight,
+                    currentFoodStorageWeight: data.currentFoodStorageWeight,
+                    maxFoodStorageWeight: data.maxFoodStorageWeight,
                     percentage: percentage,
                 }));
 
@@ -65,8 +81,9 @@ const Dashboard = () => {
             }
         });
 
-        getFoodWeight();
+        getStorageWeight();
         getSchedule();
+        getRecommendations();
 
         return () => {
             client.end();
@@ -211,18 +228,27 @@ const Dashboard = () => {
         }
     }
 
-    const getFoodWeight = async () => {
+    const getRecommendations = async () => {
+        try {
+            const res = await axios.get(SERVER_URL + "/feed/recommendation");
+            setRecommendations(res.data.recommendations);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const getStorageWeight = async () => {
         try {
             const res = await axios.get(SERVER_URL + "/status");
 
-            const { currentFoodWeight, maxFoodWeight } = res.data;
+            const { currentFoodStorageWeight, maxFoodStorageWeight } = res.data;
 
-            const percentage = Math.round((currentFoodWeight / maxFoodWeight) * 100);
+            const percentage = Math.round((currentFoodStorageWeight / maxFoodStorageWeight) * 100);
 
-            setFoodWeight(prev => ({
+            setStorageWeight(prev => ({
                 ...prev,
-                currentFoodWeight: currentFoodWeight,
-                maxFoodWeight: maxFoodWeight,
+                currentFoodStorageWeight: currentFoodStorageWeight,
+                maxFoodStorageWeight: maxFoodStorageWeight,
                 percentage: percentage,
             }));
         } catch (error) {
@@ -243,6 +269,7 @@ const Dashboard = () => {
             hideLoadingAlert();
             showSuccessAlert(`Food dispensed: ${portionSize}g. Time feeding: ${res.data.feedingTime} seconds`);
 
+            getRecommendations()
         } catch (error) {
             if (error.response?.data?.message === "Not enough food available for the requested portion") {
                 showErrorAlert("Not enough food available for the requested portion");
@@ -283,6 +310,7 @@ const Dashboard = () => {
                 isVisible={alerts.loading.show}
                 onClose={() => setAlerts(prev => ({ ...prev, loading: { ...prev.loading, show: false } }))}
             />
+
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="flex justify-between items-center">
@@ -298,8 +326,68 @@ const Dashboard = () => {
                     </div>
                 </div>
 
+                <div className="bg-white/80 backdrop-blur rounded-2xl p-6 shadow-xl border border-white/50">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-2">
+                            <div className="p-2 bg-yellow-50 rounded-lg">
+                                <Zap className="w-5 h-5 text-yellow-500" />
+                            </div>
+                            <h2 className="text-xl font-semibold text-gray-700">Daily Feeding Recommendations</h2>
+                        </div>
+                        <div className="text-sm text-purple-600 font-medium bg-purple-50 px-3 py-1 rounded-full">
+                            Personalized for Buddy
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 p-4 rounded-xl border border-yellow-100 flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2.5 bg-yellow-100 rounded-lg">
+                                    <Sunrise className="w-5 h-5 text-yellow-600" />
+                                </div>
+                                <div>
+                                    <div className="text-sm text-gray-500">Morning</div>
+                                    <div className="text-2xl font-bold text-yellow-600">{recommendations.morning}g</div>
+                                </div>
+                            </div>
+                            <div className="text-xs bg-white/70 px-2 py-0.5 rounded text-gray-500">7:00 - 9:00 AM</div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-4 rounded-xl border border-blue-100 flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2.5 bg-blue-100 rounded-lg">
+                                    <Sun className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <div className="text-sm text-gray-500">Noon</div>
+                                    <div className="text-2xl font-bold text-blue-600">{recommendations.noon}g</div>
+                                </div>
+                            </div>
+                            <div className="text-xs bg-white/70 px-2 py-0.5 rounded text-gray-500">12:00 - 2:00 PM</div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100 flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2.5 bg-purple-100 rounded-lg">
+                                    <Sunset className="w-5 h-5 text-purple-600" />
+                                </div>
+                                <div>
+                                    <div className="text-sm text-gray-500">Afternoon</div>
+                                    <div className="text-2xl font-bold text-purple-600">{recommendations.afternoon}g</div>
+                                </div>
+                            </div>
+                            <div className="text-xs bg-white/70 px-2 py-0.5 rounded text-gray-500">5:00 - 7:00 PM</div>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 flex items-center">
+                        <Info className="w-4 h-4 text-blue-500 mr-2" />
+                        <span className="text-sm text-gray-600">Recommendations based on your pet's weight, age, and activity level.</span>
+                    </div>
+                </div>
+
                 {/* Main Dashboard */}
-                <div className="grid lg:grid-cols-3 gap-8">
+                <div className="grid lg:grid-cols-4 gap-8">
                     {/* Food Storage */}
                     <div className="col-span-1 bg-white/80 backdrop-blur rounded-2xl p-6 shadow-xl border border-white/50">
                         <div className="flex items-center justify-between mb-6">
@@ -311,10 +399,10 @@ const Dashboard = () => {
                         <div className="relative w-full aspect-square max-w-[200px] mx-auto">
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
                                 <div className="text-4xl font-bold text-gradient bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                                    {foodWeight.percentage}%
+                                    {storageWeight.percentage}%
                                 </div>
                                 <div className="text-gray-600 text-sm font-medium">
-                                    {foodWeight.currentFoodWeight}g / {foodWeight.maxFoodWeight}g
+                                    {storageWeight.currentFoodStorageWeight}g / {storageWeight.maxFoodStorageWeight}g
                                 </div>
                                 <span className="text-gray-400 text-xs">Remaining</span>
                             </div>
@@ -351,7 +439,7 @@ const Dashboard = () => {
                                     fill="none"
                                     strokeLinecap="round"
                                     strokeDasharray={283} // 2 * π * 45
-                                    strokeDashoffset={283 * (1 - foodWeight.percentage / 100)}
+                                    strokeDashoffset={283 * (1 - storageWeight.percentage / 100)}
                                     style={{
                                         transition: 'stroke-dashoffset 0.8s ease-out',
                                         transform: 'rotate(-90deg)',
@@ -364,6 +452,69 @@ const Dashboard = () => {
                                         <stop offset="0%" stopColor="#3b82f6" />
                                         <stop offset="50%" stopColor="#8b5cf6" />
                                         <stop offset="100%" stopColor="#ec4899" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div className="col-span-1 bg-white/80 backdrop-blur rounded-2xl p-6 shadow-xl border border-white/50">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-semibold text-gray-700 flex items-center space-x-2">
+                                <Coffee className="w-6 h-6 text-green-600" />
+                                <span>Food Bowl</span>
+                            </h2>
+                        </div>
+                        <div className="relative w-full aspect-square max-w-[200px] mx-auto">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                                <div className="text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">
+                                    {bowlWeight.percentage}%
+                                </div>
+                                <div className="text-gray-600 text-sm font-medium">
+                                    {bowlWeight.currentWeight}g / {bowlWeight.maxCapacity}g
+                                </div>
+                                <span className="text-gray-400 text-xs">Current Level</span>
+                            </div>
+
+                            <svg className="w-full h-full" viewBox="0 0 100 100">
+                                <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    className="fill-white stroke-gray-100"
+                                    strokeWidth="8"
+                                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}
+                                />
+                                <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    className="stroke-gray-200"
+                                    strokeWidth="8"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                />
+                                <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    className="stroke-[url(#bowlGradient)]"
+                                    strokeWidth="8"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    strokeDasharray={283}
+                                    strokeDashoffset={283 * (1 - bowlWeight.percentage / 100)}
+                                    style={{
+                                        transition: 'stroke-dashoffset 0.8s ease-out',
+                                        transform: 'rotate(-90deg)',
+                                        transformOrigin: '50% 50%'
+                                    }}
+                                />
+
+                                <defs>
+                                    <linearGradient id="bowlGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stopColor="#16a34a" />
+                                        <stop offset="100%" stopColor="#0d9488" />
                                     </linearGradient>
                                 </defs>
                             </svg>

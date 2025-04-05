@@ -12,12 +12,88 @@ app.use(json());
 const activeSchedules = new Map();
 
 app.get('/status', (req, res) => {
-    res.json(deviceState);
+    res.json(
+        {
+            status: 'success',
+            ...deviceState,
+        }
+    );
 });
 
 app.get('/feed/recommendation', async (req, res) => {
     try {
+        // Calculate date range (past 2 weeks)
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
+        // Fetch logs from the past 2 weeks
+        const logs = await FeedingLog.find({
+            createdAt: { $gte: twoWeeksAgo }
+        }).sort({ createdAt: 1 });
+
+        if (logs.length === 0) {
+            // Default portions if no history exists
+            return {
+                morning: 40,
+                noon: 30,
+                afternoon: 30
+            };
+        }
+
+        // Categorize logs into time periods
+        const categorized = {
+            morning: [],
+            noon: [],
+            afternoon: []
+        };
+
+        logs.forEach(log => {
+            const hours = log.createdAt.getHours();
+
+            if (hours >= 5 && hours < 11) {
+                categorized.morning.push(log.portion);
+            } else if (hours >= 11 && hours < 15) {
+                categorized.noon.push(log.portion);
+            } else if (hours >= 15 && hours < 21) {
+                categorized.afternoon.push(log.portion);
+            }
+            // Ignore late night feedings for recommendations
+        });
+
+        // Calculate averages for each time period
+        const recommendations = {};
+
+        for (const [period, portions] of Object.entries(categorized)) {
+            if (portions.length > 0) {
+                const sum = portions.reduce((a, b) => a + b, 0);
+                const avg = sum / portions.length;
+
+                // Round to nearest 5g for cleaner portions
+                recommendations[period] = Math.round(avg / 5) * 5;
+
+                // Ensure within min/max bounds
+                recommendations[period] = Math.max(10, Math.min(100, recommendations[period]));
+            } else {
+                // Default if no data for this period
+                if (period === 'morning') {
+                    recommendations[period] = 40;
+                } else if (period === 'noon') {
+                    recommendations[period] = 30;
+                } else {
+                    recommendations[period] = 30;
+                }
+            }
+        }
+
+        res.status(200).json({
+            status: 'success',
+            recommendations: {
+                morning: recommendations.morning,
+                noon: recommendations.noon,
+                afternoon: recommendations.afternoon
+            }
+        });
+        
     } catch (error) {
         console.error('Error fetching recommendation:', error);
         res.status(500).json({
@@ -71,7 +147,7 @@ app.post('/feed', async (req, res) => {
 
         // Wait for device to complete feeding and respond
         const feedResult = await responsePromise;
-        
+
         await FeedingLog.create({
             portion: Number(portion),
         });
@@ -80,8 +156,8 @@ app.post('/feed', async (req, res) => {
             status: 'success',
             message: 'Feeding completed successfully',
             portion: Number(portion) || 50,
-            currentFoodWeight: feedResult.currentFoodWeight,
-            maxFoodWeight: feedResult.maxFoodWeight,
+            currentFoodStorageWeight: feedResult.currentFoodStorageWeight,
+            maxFoodStorageWeight: feedResult.maxFoodStorageWeight,
             feedingTime: feedResult.feedingTime,
         });
     } catch (error) {

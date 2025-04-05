@@ -2,8 +2,10 @@ const mqtt = require('mqtt');
 const client = mqtt.connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
 
 // Fake data parameters
-const maxFoodWeight = 1000; // grams (1kg capacity)
-let currentFoodWeight = 1000; // grams
+const maxFoodStorageWeight = 1000; //Cảm biến lực (Cảm biến trọng lượng)
+let currentFoodStorageWeight = 1000;
+
+const FoodBowlWeight = 0; // Trọng lượng thức ăn trong bát
 
 client.on('connect', () => {
     console.log('Device connected to MQTT');
@@ -13,10 +15,10 @@ client.on('connect', () => {
     // Send periodic updates
     setInterval(() => {
         // Publish sensor data
-        client.publish('petfeeder/currentFoodWeight', JSON.stringify({
+        client.publish('petfeeder/currentFoodStorageWeight', JSON.stringify({
             deviceId: 'feeder-001',
-            currentFoodWeight: currentFoodWeight,
-            maxFoodWeight: maxFoodWeight,
+            currentFoodStorageWeight: currentFoodStorageWeight,
+            maxFoodStorageWeight: maxFoodStorageWeight,
             timestamp: new Date().toISOString()
         }));
     }, 5000);
@@ -32,16 +34,16 @@ client.on('message', (topic, message) => {
             console.log(`Received feeding request for portion: ${portion}g`);
 
             // Check if there's enough food for the requested portion
-            if (portion > currentFoodWeight) {
-                console.log(`Error: Not enough food. Requires ${portion}g but only ${currentFoodWeight}g available.`);
+            if (portion > currentFoodStorageWeight) {
+                console.log(`Error: Not enough food. Requires ${portion}g but only ${currentFoodStorageWeight}g available.`);
 
                 // Send error response back to server
                 client.publish('petfeeder/feedResponse', JSON.stringify({
                     status: 'error',
                     requestId: requestId,
                     message: 'Not enough food available for the requested portion',
-                    currentFoodWeight: currentFoodWeight,
-                    maxFoodWeight: maxFoodWeight,
+                    currentFoodStorageWeight: currentFoodStorageWeight,
+                    maxFoodStorageWeight: maxFoodStorageWeight,
                     requestedReduction: reduction,
                     timestamp: new Date().toISOString()
                 }));
@@ -51,19 +53,19 @@ client.on('message', (topic, message) => {
             console.log(`Triggering feeding mechanism with portion: ${portion}g`);
 
             const feedingTime = 1000 + (portion * 40);
-            currentFoodWeight -= portion; // Reduce the food weight
+            currentFoodStorageWeight -= portion; // Reduce the food weight
 
             console.log('feedingTime:', feedingTime);
             setTimeout(() => {
-                console.log(`Feeding complete. Food level: ${currentFoodWeight}g`);
+                console.log(`Feeding complete. Food level: ${currentFoodStorageWeight}g`);
 
                 // Send confirmation back to server
                 client.publish('petfeeder/feedResponse', JSON.stringify({
                     status: 'success',
                     requestId: requestId,
                     feedingTime: feedingTime,
-                    currentFoodWeight: currentFoodWeight,
-                    maxFoodWeight: maxFoodWeight,
+                    currentFoodStorageWeight: currentFoodStorageWeight,
+                    maxFoodStorageWeight: maxFoodStorageWeight,
                     timestamp: new Date().toISOString()
                 }));
             }, feedingTime);
