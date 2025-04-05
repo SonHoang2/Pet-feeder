@@ -2,7 +2,7 @@ import express, { json } from 'express';
 const app = express();
 import cors from 'cors';
 import { schedule as _schedule } from 'node-cron';
-import { pendingCommands, deviceState, client } from './shareVarible.js';
+import { pendingCommands, storageWeight, foodBowlWeight, client } from './shareVarible.js';
 import Schedule from './model/schedules.js';
 import FeedingLog from './model/feeding_logs.js';
 
@@ -15,7 +15,8 @@ app.get('/status', (req, res) => {
     res.json(
         {
             status: 'success',
-            ...deviceState,
+            ...storageWeight,
+            ...foodBowlWeight,
         }
     );
 });
@@ -93,7 +94,7 @@ app.get('/feed/recommendation', async (req, res) => {
                 afternoon: recommendations.afternoon
             }
         });
-        
+
     } catch (error) {
         console.error('Error fetching recommendation:', error);
         res.status(500).json({
@@ -158,6 +159,8 @@ app.post('/feed', async (req, res) => {
             portion: Number(portion) || 50,
             currentFoodStorageWeight: feedResult.currentFoodStorageWeight,
             maxFoodStorageWeight: feedResult.maxFoodStorageWeight,
+            currentFoodBowlWeight: feedResult.currentFoodBowlWeight,
+            maxFoodBowlWeight: feedResult.maxFoodBowlWeight,
             feedingTime: feedResult.feedingTime,
         });
     } catch (error) {

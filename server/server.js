@@ -1,7 +1,7 @@
 import app from './app.js';
 import mongoose from 'mongoose';
 import config from './config/config.js';
-import { pendingCommands, deviceState, client } from './shareVarible.js';
+import { pendingCommands, storageWeight, foodBowlWeight, client } from './shareVarible.js';
 
 mongoose
     .connect(config.db)
@@ -12,24 +12,30 @@ const port = config.port || 5000;
 
 client.on('connect', () => {
     console.log('Server connected to MQTT');
-    client.subscribe('petfeeder/currentFoodWeight');
+    client.subscribe('petfeeder/StorageWeight');
     client.subscribe('petfeeder/feedResponse');
+    client.subscribe('petfeeder/FoodBowlWeight');
 });
 
 client.on('message', (topic, message) => {
-    if (topic === 'petfeeder/currentFoodWeight') {
+    if (topic === 'petfeeder/StorageWeight') {
         const data = JSON.parse(message);
-        deviceState.currentFoodWeight = data.currentFoodWeight;
-        deviceState.lastUpdate = data.timestamp;
-        deviceState.maxFoodWeight = data.maxFoodWeight;
+        storageWeight.currentFoodStorageWeight = data.currentFoodStorageWeight;
+        storageWeight.maxFoodStorageWeight = data.maxFoodStorageWeight;
 
-        const percentage = (deviceState.currentFoodWeight / deviceState.maxFoodWeight) * 100;
-
-        console.log("currentFoodWeight: ", deviceState.currentFoodWeight);
+        const percentage = (storageWeight.currentFoodStorageWeight / storageWeight.maxFoodStorageWeight) * 100;
 
         if (percentage < 20) {
             console.log('Low food alert!');
         }
+    }
+
+    if (topic === 'petfeeder/FoodBowlWeight') {
+        const data = JSON.parse(message);
+        foodBowlWeight.currentFoodBowlWeight = data.currentFoodBowlWeight;
+        foodBowlWeight.maxFoodBowlWeight = data.maxFoodBowlWeight;
+
+        console.log("currentFoodBowlWeight: ", foodBowlWeight);
     }
 
     if (topic === 'petfeeder/feedResponse') {

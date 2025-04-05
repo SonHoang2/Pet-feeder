@@ -49,17 +49,23 @@ const Dashboard = () => {
         const client = mqtt.connect('ws://localhost:9001');
 
         client.on('connect', () => {
-            client.subscribe('petfeeder/currentFoodStorageWeight', (err) => {
+            client.subscribe('petfeeder/StorageWeight', (err) => {
                 if (!err) {
-                    console.log('Subscribed to food level topic');
+                    console.log('Subscribed to Storage Weight level topic');
                 }
             });
+
+            client.subscribe('petfeeder/FoodBowlWeight', (err) => {
+                if (!err) {
+                    console.log('Subscribed to Food Bowl Weight topic');
+                }
+            })
         });
 
         client.on('message', (topic, message) => {
             console.log(`Received message on topic ${topic}:`, message.toString());
 
-            if (topic === 'petfeeder/currentFoodStorageWeight') {
+            if (topic === 'petfeeder/StorageWeight') {
                 const data = JSON.parse(message.toString());
 
                 const { currentFoodStorageWeight, maxFoodStorageWeight } = data;
@@ -75,13 +81,35 @@ const Dashboard = () => {
                     percentage: percentage,
                 }));
 
+                setBowlWeight(prev => ({
+                    ...prev,
+                    currentWeight: data.currentFoodBowlWeight,
+                    maxCapacity: data.maxFoodBowlWeight,
+                    percentage: Math.round((data.currentFoodBowlWeight / data.maxFoodBowlWeight) * 100),
+                }));
+
                 if (percentage < 20) {
                     showWarningAlert('Food level is below 20%. Please refill soon.', 'Low Food Alert');
                 }
             }
+
+
+            if (topic === 'petfeeder/FoodBowlWeight') {
+                const data = JSON.parse(message.toString());
+
+                const { currentFoodBowlWeight, maxFoodBowlWeight } = data;
+                const percentage = Math.round((currentFoodBowlWeight / maxFoodBowlWeight) * 100);
+
+                setBowlWeight(prev => ({
+                    ...prev,
+                    currentWeight: data.currentFoodBowlWeight,
+                    maxCapacity: data.maxFoodBowlWeight,
+                    percentage: Math.round((data.currentFoodBowlWeight / data.maxFoodBowlWeight) * 100),
+                }));
+            }
         });
 
-        getStorageWeight();
+        getWeight();
         getSchedule();
         getRecommendations();
 
@@ -237,11 +265,11 @@ const Dashboard = () => {
         }
     };
 
-    const getStorageWeight = async () => {
+    const getWeight = async () => {
         try {
             const res = await axios.get(SERVER_URL + "/status");
 
-            const { currentFoodStorageWeight, maxFoodStorageWeight } = res.data;
+            const { currentFoodStorageWeight, maxFoodStorageWeight, currentFoodBowlWeight, maxFoodBowlWeight } = res.data;
 
             const percentage = Math.round((currentFoodStorageWeight / maxFoodStorageWeight) * 100);
 
@@ -251,6 +279,13 @@ const Dashboard = () => {
                 maxFoodStorageWeight: maxFoodStorageWeight,
                 percentage: percentage,
             }));
+
+            setBowlWeight(prev => ({
+                ...prev,
+                currentWeight: currentFoodBowlWeight,
+                maxCapacity: maxFoodBowlWeight,
+                percentage: Math.round((currentFoodBowlWeight / maxFoodBowlWeight) * 100),
+            }));
         } catch (error) {
             console.error(error);
         }
@@ -258,13 +293,16 @@ const Dashboard = () => {
 
     const feed = async () => {
         try {
+            if (portionSize > bowlWeight.maxCapacity - bowlWeight.currentWeight) {
+                showWarningAlert("Not enough space in the bowl. Please adjust the portion size or wait until the bowl is emptied.");
+                return;
+            }
+
             showLoadingAlert("Dispensing food...", "Please wait");
 
             const res = await axios.post(SERVER_URL + "/feed", {
                 portion: portionSize,
             });
-
-            console.log("res.data", res.data);
 
             hideLoadingAlert();
             showSuccessAlert(`Food dispensed: ${portionSize}g. Time feeding: ${res.data.feedingTime} seconds`);
