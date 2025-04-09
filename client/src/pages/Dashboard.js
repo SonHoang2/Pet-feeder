@@ -259,6 +259,8 @@ const Dashboard = () => {
     const getRecommendations = async () => {
         try {
             const res = await axios.get(SERVER_URL + "/feed/recommendation");
+            console.log(res.data.recommendations);
+            
             setRecommendations(res.data.recommendations);
         } catch (error) {
             console.error(error);

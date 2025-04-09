@@ -32,6 +32,8 @@ app.get('/feed/recommendation', async (req, res) => {
             createdAt: { $gte: twoWeeksAgo }
         }).sort({ createdAt: 1 });
 
+        console.log('Feeding logs:', logs);
+
         if (logs.length === 0) {
             // Default portions if no history exists
             return {
@@ -49,13 +51,16 @@ app.get('/feed/recommendation', async (req, res) => {
         };
 
         logs.forEach(log => {
-            const hours = log.createdAt.getHours();
-
-            if (hours >= 5 && hours < 11) {
+            // Convert UTC time to Vietnam time (UTC+7)
+            const vietnamHours = (log.createdAt.getUTCHours() + 7) % 24;
+        
+            console.log('Log time:', log.createdAt, 'Vietnam Hours:', vietnamHours);
+            
+            if (vietnamHours >= 5 && vietnamHours < 11) {
                 categorized.morning.push(log.portion);
-            } else if (hours >= 11 && hours < 15) {
+            } else if (vietnamHours >= 11 && vietnamHours < 15) {
                 categorized.noon.push(log.portion);
-            } else if (hours >= 15 && hours < 21) {
+            } else if (vietnamHours >= 15 && vietnamHours < 21) {
                 categorized.afternoon.push(log.portion);
             }
             // Ignore late night feedings for recommendations
@@ -65,6 +70,7 @@ app.get('/feed/recommendation', async (req, res) => {
         const recommendations = {};
 
         for (const [period, portions] of Object.entries(categorized)) {
+            
             if (portions.length > 0) {
                 const sum = portions.reduce((a, b) => a + b, 0);
                 const avg = sum / portions.length;
